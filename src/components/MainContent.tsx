@@ -51,22 +51,6 @@ const MainContent: React.FC<MainContentProps> = ({
   const isPanning = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
-  const getNotePositionOnPath = (noteBeat: number) => {
-    const { pathDirectionNotes, nodePositions } = pathData;
-    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
-        const a = pathDirectionNotes[i];
-        const b = pathDirectionNotes[i + 1];
-        const pa = nodePositions[i];
-        const pb = nodePositions[i + 1];
-        if (a.pathBeat <= noteBeat && noteBeat <= b.pathBeat) {
-            if (b.pathBeat === a.pathBeat) return pa;
-            const interp = (noteBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
-            return { x: pa.x + (pb.x - pa.x) * interp, y: pa.y + (pb.y - pa.y) * interp };
-        }
-    }
-    return null;
-  }
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -237,7 +221,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
     // --- End of drawing logic ---
 
-  }, [pathData, notes, zoom, viewOffset, subdivisions, isPlaying, demoPlayerPosition, highlightedNoteIndex, highlightedNoteTimer, bpm, preDelay, getNotePositionOnPath]);
+  }, [pathData, notes, zoom, viewOffset, subdivisions, isPlaying, demoPlayerPosition, highlightedNoteIndex, highlightedNoteTimer, bpm, preDelay]);
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -296,6 +280,22 @@ const MainContent: React.FC<MainContentProps> = ({
     };
     input.click();
   };
+
+  const getNotePositionOnPath = (noteBeat: number) => {
+    const { pathDirectionNotes, nodePositions } = pathData;
+    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+        const a = pathDirectionNotes[i];
+        const b = pathDirectionNotes[i + 1];
+        const pa = nodePositions[i];
+        const pb = nodePositions[i + 1];
+        if (a.pathBeat <= noteBeat && noteBeat <= b.pathBeat) {
+            if (b.pathBeat === a.pathBeat) return pa;
+            const interp = (noteBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
+            return { x: pa.x + (pb.x - pa.x) * interp, y: pa.y + (pb.y - pa.y) * interp };
+        }
+    }
+    return null;
+  }
 
   return (
     <div 

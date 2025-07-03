@@ -49,8 +49,19 @@ const Waveform: React.FC<WaveformProps> = ({ isSidebarHidden, audioBuffer, wavef
     const musicStartX = width * musicStartRatio;
     waveformCtx.fillStyle = 'rgba(100, 100, 100, 0.8)';
     waveformCtx.fillRect(0, 0, musicStartX, height);
-    // ... (rest of the waveform drawing logic)
-
+    
+    // Draw text labels
+    waveformCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    waveformCtx.font = '12px Arial';
+    waveformCtx.textAlign = 'center';
+    waveformCtx.fillText('게임 시작', musicStartX / 2, height / 2 - 10);
+    waveformCtx.fillText('(3초 후 음악 시작)', musicStartX / 2, height / 2 + 5);
+    if (preDelaySeconds !== 0) {
+        waveformCtx.font = '10px Arial';
+        waveformCtx.fillStyle = 'rgba(255, 200, 100, 0.9)';
+        waveformCtx.fillText(`Pre-delay: ${preDelaySeconds > 0 ? '+' : ''}${(preDelaySeconds * 1000).toFixed(0)}ms`, musicStartX / 2, height / 2 + 18);
+    }
+    
     waveformCtx.fillStyle = '#4CAF50';
     const musicAreaWidth = width * (audioBuffer.duration / totalDuration);
     for (let i = 0; i < waveformData.length; i++) {
@@ -63,7 +74,50 @@ const Waveform: React.FC<WaveformProps> = ({ isSidebarHidden, audioBuffer, wavef
     
     // Draw Ruler logic from script.js
     rulerCtx.clearRect(0, 0, rulerCanvas.width, rulerCanvas.height);
-    // ... (ruler drawing logic)
+    rulerCtx.strokeStyle = '#666';
+    rulerCtx.fillStyle = '#ccc';
+    rulerCtx.font = '9px Arial';
+
+    const pixelsPerSecond = width / totalDuration;
+    let timeInterval = 1;
+
+    if (pixelsPerSecond < 30) timeInterval = 10;
+    else if (pixelsPerSecond < 60) timeInterval = 5;
+    else if (pixelsPerSecond < 120) timeInterval = 2;
+    else if (pixelsPerSecond > 500) timeInterval = 0.1;
+    else if (pixelsPerSecond > 250) timeInterval = 0.5;
+
+    for (let time = 0; time <= totalDuration; time += timeInterval) {
+        const x = (time / totalDuration) * width;
+        const isSecond = time % 1 === 0;
+        rulerCtx.strokeStyle = time < MUSIC_START_TIME ? '#888' : '#666';
+        rulerCtx.beginPath();
+        rulerCtx.moveTo(x, 0);
+        rulerCtx.lineTo(x, isSecond ? 15 : 8);
+        rulerCtx.stroke();
+        if (isSecond && time % Math.max(1, Math.floor(timeInterval)) === 0) {
+            rulerCtx.fillStyle = time < MUSIC_START_TIME ? '#aaa' : '#ccc';
+            if (time < MUSIC_START_TIME) {
+                rulerCtx.fillText(`${time.toFixed(0)}s`, x + 1, 28);
+            } else {
+                const musicTime = time - MUSIC_START_TIME;
+                rulerCtx.fillText(`♪${musicTime.toFixed(musicTime < 1 ? 1 : 0)}s`, x + 1, 28);
+            }
+        }
+    }
+
+    const rulerStartX = (MUSIC_START_TIME / totalDuration) * width;
+    rulerCtx.strokeStyle = '#ff4444';
+    rulerCtx.lineWidth = 2;
+    rulerCtx.beginPath();
+    rulerCtx.moveTo(rulerStartX, 0);
+    rulerCtx.lineTo(rulerStartX, rulerCanvas.height);
+    rulerCtx.stroke();
+    rulerCtx.fillStyle = '#ff4444';
+    rulerCtx.font = 'bold 10px Arial';
+    rulerCtx.fillText('음악 시작', rulerStartX + 2, 12);
+    rulerCtx.font = '8px Arial';
+    rulerCtx.fillText('(3초)', rulerStartX + 2, 22);
 
   }, [audioBuffer, waveformData, preDelay, waveformZoom, isSidebarHidden]);
 
