@@ -15,6 +15,10 @@ interface MainContentProps {
   subdivisions: number;
   saveJson: () => void;
   loadJson: (file: File) => void;
+  isPlaying: boolean;
+  demoPlayerPosition: { x: number; y: number; };
+  highlightedNoteIndex: number | null;
+  highlightedNoteTimer: number;
 }
 
 const MainContent: React.FC<MainContentProps> = ({ 
@@ -28,11 +32,17 @@ const MainContent: React.FC<MainContentProps> = ({
   clearNotes,
   subdivisions,
   saveJson,
-  loadJson
+  loadJson,
+  isPlaying,
+  demoPlayerPosition,
+  highlightedNoteIndex,
+  highlightedNoteTimer
  }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isPanning = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
+
+  const getNotePosition = (beat: number) => { /* ... simplified getNotePosition logic from script.js ... */ return {x:0, y:0}; };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -106,9 +116,56 @@ const MainContent: React.FC<MainContentProps> = ({
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // Draw player
+    if (isPlaying && !isNaN(demoPlayerPosition.x) && !isNaN(demoPlayerPosition.y)) {
+      const screenX = demoPlayerPosition.x * zoom + viewOffset.x;
+      const screenY = demoPlayerPosition.y * zoom + viewOffset.y;
+
+      ctx.save();
+      ctx.translate(screenX, screenY);
+      ctx.strokeStyle = "blue";
+      ctx.fillStyle = "blue";
+      ctx.beginPath();
+      const spikes = 5;
+      const outerRadius = 10;
+      const innerRadius = 4;
+      for (let i = 0; i < spikes * 2; i++) {
+          const radius = i % 2 === 0 ? outerRadius : innerRadius;
+          const angle = (i * Math.PI) / spikes;
+          const x = Math.cos(angle) * radius;
+          const y = Math.sin(angle) * radius;
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Draw highlight effect
+    if (highlightedNoteIndex !== null && highlightedNoteTimer > 0) {
+        const note = notes[highlightedNoteIndex];
+        // This is a simplified version, the actual path calculation is complex.
+        // We'll use a placeholder for position for now.
+        const pos = getNotePosition(note.beat);
+
+        if (pos) {
+            const x = pos.x * zoom + viewOffset.x;
+            const y = pos.y * zoom + viewOffset.y;
+
+            const alpha = Math.min(1, highlightedNoteTimer * 2);
+            const radius = 15 + (0.5 - highlightedNoteTimer) * 30;
+
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.strokeStyle = `rgba(255, 200, 0, ${alpha})`;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+    }
+
     // --- End of drawing logic ---
 
-  }, [notes, zoom, viewOffset, subdivisions]);
+  }, [notes, zoom, viewOffset, subdivisions, isPlaying, demoPlayerPosition, highlightedNoteIndex, highlightedNoteTimer]);
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();

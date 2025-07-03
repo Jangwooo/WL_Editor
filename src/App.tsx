@@ -49,12 +49,22 @@ function App() {
         subdivisions={editor.subdivisions}
         saveJson={editor.saveJson}
         loadJson={editor.loadJson}
+        isPlaying={editor.isPlaying}
+        demoPlayerPosition={editor.demoPlayerPosition}
+        highlightedNoteIndex={editor.highlightedNoteIndex}
+        highlightedNoteTimer={editor.highlightedNoteTimer}
       />
 
       <ControlBar 
         isHidden={isControlBarHidden}
         addTabNote={editor.addTabNote}
         addDirectionNote={editor.addDirectionNote}
+        loadAudioFile={editor.loadAudioFile}
+        play={editor.play}
+        pause={editor.pause}
+        stop={editor.stop}
+        elapsedTime={editor.elapsedTime}
+        totalTime={editor.audioBuffer?.duration}
       />
       <button
         id="control-bar-toggle"
@@ -64,7 +74,12 @@ function App() {
         {isControlBarHidden ? '⚙' : '×'}
       </button>
 
-      <Waveform isSidebarHidden={isSidebarHidden} />
+      <Waveform 
+        isSidebarHidden={isSidebarHidden}
+        audioBuffer={editor.audioBuffer}
+        waveformData={editor.waveformData}
+        preDelay={editor.preDelay}
+      />
     </>
   )
 }

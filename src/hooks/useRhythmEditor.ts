@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { beatToTime, timeToBeat } from '../utils';
+import { beatToTime, timeToBeat, directionToVector } from '../utils';
 
 // Type definitions moved to top level and exported
 export interface Note {
@@ -20,6 +20,11 @@ export interface SavedAudioFile {
   type: string;
 }
 
+export interface WaveformData {
+  min: number;
+  max: number;
+}
+
 export const useRhythmEditor = () => {
   // Global variables from script.js as state
   const [notes, setNotes] = useState<Note[]>([]);
@@ -31,6 +36,7 @@ export const useRhythmEditor = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [waveformData, setWaveformData] = useState<WaveformData[] | null>(null);
   const [audioFileURL, setAudioFileURL] = useState<string | null>(null);
   const [savedAudioFile, setSavedAudioFile] = useState<SavedAudioFile | null>(null);
   
@@ -43,6 +49,16 @@ export const useRhythmEditor = () => {
   const lastMousePos = useRef({ x: 0, y: 0 });
   const animationFrameId = useRef<number | null>(null);
   const demoAudio = useRef<HTMLAudioElement>(new Audio());
+  const startTimeRef = useRef(0);
+  const playedNotesRef = useRef<Set<string>>(new Set());
+
+  const [demoPlayerPosition, setDemoPlayerPosition] = useState({ x: 0, y: 0 });
+
+  const [highlightedNoteIndex, setHighlightedNoteIndex] = useState<number | null>(null);
+  const highlightedNoteTimer = useRef(0);
+
+  const tabSoundPool = useRef<HTMLAudioElement[]>([]);
+  const directionSoundPool = useRef<HTMLAudioElement[]>([]);
 
   // Initialization (from DOMContentLoaded)
   useEffect(() => {
@@ -186,6 +202,248 @@ export const useRhythmEditor = () => {
     reader.readAsText(file);
   };
 
+  const loadAudioFile = async (file: File) => {
+    if (audioFileURL) {
+        URL.revokeObjectURL(audioFileURL);
+    }
+    const newUrl = URL.createObjectURL(file);
+    setAudioFileURL(newUrl);
+    setSavedAudioFile({ name: file.name, size: file.size, type: file.type });
+
+    try {
+        const audioContext = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
+        const arrayBuffer = await file.arrayBuffer();
+        const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        setAudioBuffer(decodedBuffer);
+        generateWaveformData(decodedBuffer);
+    } catch (e) {
+        console.warn("Web Audio API failed, using dummy data.", e);
+        // Fallback to create a dummy waveform based on audio element duration
+        const audio = new Audio(newUrl);
+        audio.onloadedmetadata = () => {
+            const dummyBuffer = { duration: audio.duration, getChannelData: () => new Float32Array() };
+            setAudioBuffer(dummyBuffer as any);
+            generateWaveformData(dummyBuffer as any, true);
+        }
+    }
+  };
+
+  const generateWaveformData = (buffer: AudioBuffer, isDummy = false) => {
+    if (!buffer) return;
+
+    const data: WaveformData[] = [];
+    if (isDummy || !buffer.getChannelData) {
+        for (let i = 0; i < 2000; i++) {
+            const intensity = Math.random() * 0.5;
+            data.push({ min: -intensity, max: intensity });
+        }
+    } else {
+        const channelData = buffer.getChannelData(0);
+        const samples = channelData.length;
+        const blockSize = Math.max(1, Math.floor(samples / 2000));
+
+        for (let i = 0; i < samples; i += blockSize) {
+            let min = 0;
+            let max = 0;
+            for (let j = 0; j < blockSize && i + j < samples; j++) {
+                const sample = channelData[i + j];
+                if (sample > max) max = sample;
+                if (sample < min) min = sample;
+            }
+            data.push({ min, max });
+        }
+    }
+    setWaveformData(data);
+  };
+
+  const play = () => {
+    if (!audioFileURL) return;
+    
+    if (isPaused) {
+      setIsPaused(false);
+      startTimeRef.current = performance.now() - elapsedTime * 1000;
+      demoAudio.current.currentTime = Math.max(0, elapsedTime - MUSIC_START_TIME);
+      demoAudio.current.play();
+    } else if (!isPlaying) {
+      setIsPlaying(true);
+      setIsPaused(false);
+      setElapsedTime(0);
+      playedNotesRef.current.clear();
+      startTimeRef.current = performance.now();
+      
+      setTimeout(() => {
+        if (demoAudio.current) {
+          demoAudio.current.currentTime = 0;
+          demoAudio.current.play();
+        }
+      }, MUSIC_START_TIME * 1000);
+    }
+  };
+
+  const pause = () => {
+    if (!isPlaying) return;
+    setIsPaused(!isPaused);
+    if (!isPaused) { // Resuming
+        startTimeRef.current = performance.now() - elapsedTime * 1000;
+        demoAudio.current.play();
+    } else { // Pausing
+        demoAudio.current.pause();
+        if(animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+    }
+  };
+
+  const stop = () => {
+    if (!isPlaying) return;
+    setIsPlaying(false);
+    setIsPaused(false);
+    setElapsedTime(0);
+    demoAudio.current.pause();
+    demoAudio.current.currentTime = 0;
+    if(animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+    playedNotesRef.current.clear();
+  };
+
+  const getNotePositionFromPathData = (pathBeat: number, pathDirectionNotes: any[], nodePositions: any[]) => {
+    // This is a simplified version of the original logic
+    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+        const a = pathDirectionNotes[i];
+        const b = pathDirectionNotes[i + 1];
+        const pa = nodePositions[i];
+        const pb = nodePositions[i + 1];
+
+        if (a.pathBeat <= pathBeat && pathBeat <= b.pathBeat) {
+            if (b.pathBeat === a.pathBeat) return { x: pa.x, y: pa.y };
+            const interp = (pathBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
+            return {
+                x: pa.x + (pb.x - pa.x) * interp,
+                y: pa.y + (pb.y - pa.y) * interp
+            };
+        }
+    }
+    return null;
+  }
+  
+  // Sound pool initialization
+  useEffect(() => {
+    try {
+        tabSoundPool.current = Array.from({ length: SOUND_POOL_SIZE }, () => new Audio('/sfx/tab.mp3'));
+        directionSoundPool.current = Array.from({ length: SOUND_POOL_SIZE }, () => new Audio('/sfx/tab.mp3'));
+    } catch (e) {
+        console.warn("Failed to load note sounds", e);
+    }
+  }, []);
+
+  const getAvailableSound = (pool: HTMLAudioElement[]) => {
+    // Simplified version of the original logic
+    const sound = pool.find(audio => audio.paused || audio.ended);
+    return sound || pool[0];
+  };
+
+  const playNoteSound = (noteType: 'tab' | 'direction') => {
+    const pool = noteType === 'tab' ? tabSoundPool.current : directionSoundPool.current;
+    if(pool.length > 0) {
+        const sound = getAvailableSound(pool);
+        sound.currentTime = 0;
+        sound.play().catch(e => console.warn("Sound play failed", e));
+    }
+  };
+
+  const checkNoteHits = (currentTime: number) => {
+    const preDelaySeconds = preDelay / 1000;
+    const tolerance = 0.05;
+
+    notes.forEach((note, index) => {
+        const noteId = `${note.type}-${note.beat}-${index}`;
+        if (playedNotesRef.current.has(noteId)) return;
+
+        let targetTime;
+        if (note.beat === 0 && note.type === "direction") {
+            targetTime = 0;
+        } else {
+            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            targetTime = originalTime + preDelaySeconds;
+        }
+
+        if (currentTime >= targetTime - tolerance && currentTime <= targetTime + tolerance) {
+            if (!(note.beat === 0 && note.type === "direction")) {
+                playNoteSound(note.type);
+            }
+            playedNotesRef.current.add(noteId);
+            setHighlightedNoteIndex(index);
+            highlightedNoteTimer.current = 0.3; // Highlight for 0.3s
+        }
+    });
+  };
+
+  // Main playback loop
+  useEffect(() => {
+    if (isPlaying && !isPaused) {
+      const update = () => {
+        const currentElapsedTime = (performance.now() - startTimeRef.current) / 1000;
+        setElapsedTime(currentElapsedTime);
+        
+        checkNoteHits(currentElapsedTime);
+
+        if (highlightedNoteTimer.current > 0) {
+            highlightedNoteTimer.current -= 1/60;
+            if(highlightedNoteTimer.current <= 0) {
+                setHighlightedNoteIndex(null);
+            }
+        }
+
+        const currentBeat = timeToBeat(currentElapsedTime, bpm, subdivisions);
+
+        // Path calculation logic from drawPath
+        const preDelaySeconds = preDelay / 1000;
+        const directionNotes = notes.filter(n => n.type === "direction").sort((a, b) => a.beat - b.beat);
+        const pathDirectionNotes = directionNotes.map(note => {
+            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            const adjustedTime = note.beat === 0 ? 0 : originalTime + preDelaySeconds;
+            return { ...note, pathBeat: timeToBeat(adjustedTime, bpm, subdivisions) };
+        }).sort((a, b) => a.pathBeat - b.pathBeat);
+
+        const nodePositions: {x:number, y:number}[] = [];
+        let currentPos = { x: 0, y: 0 };
+        nodePositions.push(currentPos);
+        for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+            // Simplified path segment calculation
+            const a = pathDirectionNotes[i];
+            const b = pathDirectionNotes[i+1];
+            const dBeat = b.pathBeat - a.pathBeat;
+            const dist = (8 * dBeat) / subdivisions;
+            const [dx, dy] = directionToVector(a.direction);
+            const mag = Math.hypot(dx, dy) || 1;
+            const nextPos = { x: currentPos.x + (dx/mag) * dist, y: currentPos.y + (dy/mag) * dist };
+            nodePositions.push(nextPos);
+            currentPos = nextPos;
+        }
+
+        const playerPos = getNotePositionFromPathData(currentBeat, pathDirectionNotes, nodePositions);
+        if(playerPos) setDemoPlayerPosition(playerPos);
+        
+        animationFrameId.current = requestAnimationFrame(update);
+      };
+      animationFrameId.current = requestAnimationFrame(update);
+    } else {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    }
+    return () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    };
+  }, [isPlaying, isPaused, notes, bpm, subdivisions, preDelay]);
+  
+  // Update audio source URL
+  useEffect(() => {
+    if (audioFileURL) {
+        demoAudio.current.src = audioFileURL;
+    }
+  }, [audioFileURL]);
+
   return {
     notes,
     setNotes,
@@ -197,6 +455,7 @@ export const useRhythmEditor = () => {
     isPaused,
     elapsedTime,
     audioBuffer,
+    waveformData,
     audioFileURL,
     savedAudioFile,
     bpm,
@@ -217,5 +476,12 @@ export const useRhythmEditor = () => {
     clearNotes,
     saveJson,
     loadJson,
+    loadAudioFile,
+    play,
+    pause,
+    stop,
+    demoPlayerPosition,
+    highlightedNoteIndex,
+    highlightedNoteTimer: highlightedNoteTimer.current,
   };
 };
