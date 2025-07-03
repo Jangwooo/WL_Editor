@@ -237,7 +237,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
     // --- End of drawing logic ---
 
-  }, [pathData, notes, zoom, viewOffset, subdivisions, isPlaying, demoPlayerPosition, highlightedNoteIndex, highlightedNoteTimer, bpm, preDelay]);
+  }, [pathData, notes, zoom, viewOffset, subdivisions, isPlaying, demoPlayerPosition, highlightedNoteIndex, highlightedNoteTimer, bpm, preDelay, getNotePositionOnPath]);
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
