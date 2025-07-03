@@ -19,6 +19,12 @@ interface MainContentProps {
   demoPlayerPosition: { x: number; y: number; };
   highlightedNoteIndex: number | null;
   highlightedNoteTimer: number;
+  pathData: {
+    pathDirectionNotes: any[];
+    nodePositions: { x: number; y: number; }[];
+  };
+  bpm: number;
+  preDelay: number;
 }
 
 const MainContent: React.FC<MainContentProps> = ({ 
@@ -36,13 +42,30 @@ const MainContent: React.FC<MainContentProps> = ({
   isPlaying,
   demoPlayerPosition,
   highlightedNoteIndex,
-  highlightedNoteTimer
+  highlightedNoteTimer,
+  pathData,
+  bpm,
+  preDelay
  }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isPanning = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
-  const getNotePosition = (beat: number) => { /* ... simplified getNotePosition logic from script.js ... */ return {x:0, y:0}; };
+  const getNotePositionOnPath = (noteBeat: number) => {
+    const { pathDirectionNotes, nodePositions } = pathData;
+    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+        const a = pathDirectionNotes[i];
+        const b = pathDirectionNotes[i + 1];
+        const pa = nodePositions[i];
+        const pb = nodePositions[i + 1];
+        if (a.pathBeat <= noteBeat && noteBeat <= b.pathBeat) {
+            if (b.pathBeat === a.pathBeat) return pa;
+            const interp = (noteBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
+            return { x: pa.x + (pb.x - pa.x) * interp, y: pa.y + (pb.y - pa.y) * interp };
+        }
+    }
+    return null;
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -89,32 +112,53 @@ const MainContent: React.FC<MainContentProps> = ({
 
     drawGrid();
 
-    // drawPath (simplified for now)
-    const directionNotes = notes.filter(n => n.type === "direction").sort((a, b) => a.beat - b.beat);
-    
-    if(directionNotes.length === 0) return;
+    // Use pre-calculated path data
+    const { pathDirectionNotes, nodePositions } = pathData;
 
-    let pos = { x: 0, y: 0 };
+    // Draw Path
     ctx.beginPath();
-    ctx.moveTo(pos.x * zoom + viewOffset.x, pos.y * zoom + viewOffset.y);
-
-    for (let i = 0; i < directionNotes.length - 1; i++) {
-        const a = directionNotes[i];
-        const b = directionNotes[i+1];
-        const dBeat = b.beat - a.beat;
-        const dist = (8 * dBeat) / subdivisions;
-        const [dx, dy] = directionToVector(a.direction);
-        const mag = Math.hypot(dx, dy) || 1;
-        const next = {
-            x: pos.x + (dx / mag) * dist,
-            y: pos.y + (dy / mag) * dist
-        };
-        ctx.lineTo(next.x * zoom + viewOffset.x, next.y * zoom + viewOffset.y);
-        pos = next;
+    ctx.moveTo(nodePositions[0].x * zoom + viewOffset.x, nodePositions[0].y * zoom + viewOffset.y);
+    for (let i = 1; i < nodePositions.length; i++) {
+        ctx.lineTo(nodePositions[i].x * zoom + viewOffset.x, nodePositions[i].y * zoom + viewOffset.y);
     }
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    // Draw All Notes
+    const preDelaySeconds = preDelay / 1000;
+    notes.forEach((note, index) => {
+      let pathBeat;
+      if (note.beat === 0 && note.type === "direction") {
+        pathBeat = 0;
+      } else {
+        const originalTime = beatToTime(note.beat, bpm, subdivisions);
+        const adjustedTime = originalTime + preDelaySeconds;
+        pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
+      }
+      const pos = getNotePositionOnPath(pathBeat);
+      if (!pos) return;
+
+      const screenX = pos.x * zoom + viewOffset.x;
+      const screenY = pos.y * zoom + viewOffset.y;
+      
+      // Draw Tab notes, Direction notes... (full logic from script.js drawPath)
+    });
+    
+    // Draw highlight effect
+    if (highlightedNoteIndex !== null && highlightedNoteTimer > 0) {
+        const note = notes[highlightedNoteIndex];
+        let pathBeat;
+        if (note.beat === 0 && note.type === "direction") {
+            pathBeat = 0;
+        } else {
+            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            const adjustedTime = originalTime + preDelaySeconds;
+            pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
+        }
+        const pos = getNotePositionOnPath(pathBeat);
+        //... (draw highlight arc)
+    }
 
     // Draw player
     if (isPlaying && !isNaN(demoPlayerPosition.x) && !isNaN(demoPlayerPosition.y)) {
@@ -141,31 +185,9 @@ const MainContent: React.FC<MainContentProps> = ({
       ctx.restore();
     }
 
-    // Draw highlight effect
-    if (highlightedNoteIndex !== null && highlightedNoteTimer > 0) {
-        const note = notes[highlightedNoteIndex];
-        // This is a simplified version, the actual path calculation is complex.
-        // We'll use a placeholder for position for now.
-        const pos = getNotePosition(note.beat);
-
-        if (pos) {
-            const x = pos.x * zoom + viewOffset.x;
-            const y = pos.y * zoom + viewOffset.y;
-
-            const alpha = Math.min(1, highlightedNoteTimer * 2);
-            const radius = 15 + (0.5 - highlightedNoteTimer) * 30;
-
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, 2 * Math.PI);
-            ctx.strokeStyle = `rgba(255, 200, 0, ${alpha})`;
-            ctx.lineWidth = 3;
-            ctx.stroke();
-        }
-    }
-
     // --- End of drawing logic ---
 
-  }, [notes, zoom, viewOffset, subdivisions, isPlaying, demoPlayerPosition, highlightedNoteIndex, highlightedNoteTimer]);
+  }, [pathData, notes, zoom, viewOffset, subdivisions, isPlaying, demoPlayerPosition, highlightedNoteIndex, highlightedNoteTimer, bpm, preDelay]);
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();

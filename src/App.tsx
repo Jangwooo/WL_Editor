@@ -53,6 +53,9 @@ function App() {
         demoPlayerPosition={editor.demoPlayerPosition}
         highlightedNoteIndex={editor.highlightedNoteIndex}
         highlightedNoteTimer={editor.highlightedNoteTimer}
+        pathData={editor.pathData}
+        bpm={editor.bpm}
+        preDelay={editor.preDelay}
       />
 
       <ControlBar 

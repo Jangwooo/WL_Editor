@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { beatToTime, timeToBeat, directionToVector } from '../utils';
 
 // Type definitions moved to top level and exported
@@ -59,6 +59,41 @@ export const useRhythmEditor = () => {
 
   const tabSoundPool = useRef<HTMLAudioElement[]>([]);
   const directionSoundPool = useRef<HTMLAudioElement[]>([]);
+
+  const pathData = useMemo(() => {
+    const preDelaySeconds = preDelay / 1000;
+    const directionNotes = notes.filter(n => n.type === "direction").sort((a, b) => a.beat - b.beat);
+
+    const pathDirectionNotes = directionNotes.map(note => {
+        let pathBeat;
+        if (note.beat === 0 && note.type === "direction") {
+            pathBeat = 0;
+        } else {
+            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            const adjustedTime = originalTime + preDelaySeconds;
+            pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
+        }
+        return { ...note, pathBeat };
+    }).sort((a, b) => a.pathBeat - b.pathBeat);
+
+    const nodePositions: {x:number, y:number}[] = [];
+    let currentPos = { x: 0, y: 0 };
+    nodePositions.push(currentPos);
+    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+        const a = pathDirectionNotes[i];
+        const b = pathDirectionNotes[i+1];
+        const dBeat = b.pathBeat - a.pathBeat;
+        const dist = (8 * dBeat) / subdivisions;
+        const [dx, dy] = directionToVector(a.direction);
+        const mag = Math.hypot(dx, dy) || 1;
+        const nextPos = { x: currentPos.x + (dx/mag) * dist, y: currentPos.y + (dy/mag) * dist };
+        nodePositions.push(nextPos);
+        currentPos = nextPos;
+    }
+    
+    return { pathDirectionNotes, nodePositions };
+
+  }, [notes, bpm, subdivisions, preDelay]);
 
   // Initialization (from DOMContentLoaded)
   useEffect(() => {
@@ -393,32 +428,9 @@ export const useRhythmEditor = () => {
         }
 
         const currentBeat = timeToBeat(currentElapsedTime, bpm, subdivisions);
-
-        // Path calculation logic from drawPath
-        const preDelaySeconds = preDelay / 1000;
-        const directionNotes = notes.filter(n => n.type === "direction").sort((a, b) => a.beat - b.beat);
-        const pathDirectionNotes = directionNotes.map(note => {
-            const originalTime = beatToTime(note.beat, bpm, subdivisions);
-            const adjustedTime = note.beat === 0 ? 0 : originalTime + preDelaySeconds;
-            return { ...note, pathBeat: timeToBeat(adjustedTime, bpm, subdivisions) };
-        }).sort((a, b) => a.pathBeat - b.pathBeat);
-
-        const nodePositions: {x:number, y:number}[] = [];
-        let currentPos = { x: 0, y: 0 };
-        nodePositions.push(currentPos);
-        for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
-            // Simplified path segment calculation
-            const a = pathDirectionNotes[i];
-            const b = pathDirectionNotes[i+1];
-            const dBeat = b.pathBeat - a.pathBeat;
-            const dist = (8 * dBeat) / subdivisions;
-            const [dx, dy] = directionToVector(a.direction);
-            const mag = Math.hypot(dx, dy) || 1;
-            const nextPos = { x: currentPos.x + (dx/mag) * dist, y: currentPos.y + (dy/mag) * dist };
-            nodePositions.push(nextPos);
-            currentPos = nextPos;
-        }
-
+        
+        // Use memoized pathData
+        const { pathDirectionNotes, nodePositions } = pathData;
         const playerPos = getNotePositionFromPathData(currentBeat, pathDirectionNotes, nodePositions);
         if(playerPos) setDemoPlayerPosition(playerPos);
         
@@ -435,7 +447,7 @@ export const useRhythmEditor = () => {
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, [isPlaying, isPaused, notes, bpm, subdivisions, preDelay]);
+  }, [isPlaying, isPaused, bpm, subdivisions, pathData]);
   
   // Update audio source URL
   useEffect(() => {
@@ -483,5 +495,6 @@ export const useRhythmEditor = () => {
     demoPlayerPosition,
     highlightedNoteIndex,
     highlightedNoteTimer: highlightedNoteTimer.current,
+    pathData,
   };
 };
