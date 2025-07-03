@@ -1,6 +1,7 @@
 import React from 'react';
 import classNames from 'classnames';
 import type { Note } from '../hooks/useRhythmEditor';
+import { beatToTime } from '../utils';
 
 interface SidebarProps {
   isHidden: boolean;
@@ -11,6 +12,8 @@ interface SidebarProps {
   setSubdivisions: (value: number) => void;
   preDelay: number;
   setPreDelay: (value: number) => void;
+  updateNote: (index: number, updatedNote: Note) => void;
+  deleteNote: (index: number) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -21,8 +24,22 @@ const Sidebar: React.FC<SidebarProps> = ({
   subdivisions,
   setSubdivisions,
   preDelay,
-  setPreDelay
+  setPreDelay,
+  updateNote,
+  deleteNote
 }) => {
+
+  const handleNoteChange = (index: number, field: keyof Note, value: any) => {
+    const note = notes[index];
+    if (field === 'beat') {
+      updateNote(index, { ...note, beat: parseInt(value, 10) });
+    } else {
+      updateNote(index, { ...note, [field]: value });
+    }
+  };
+
+  const getPreDelaySeconds = () => preDelay / 1000;
+
   return (
     <div id="sidebar" className={classNames({ hidden: isHidden })}>
       <div style={{ padding: '8px' }}>
@@ -46,7 +63,57 @@ const Sidebar: React.FC<SidebarProps> = ({
           </tr>
         </thead>
         <tbody id="note-list">
-          {/* Note rendering will be implemented here */}
+          {notes.map((note, index) => {
+            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            let finalTimeDisplay = '';
+            let finalTimeTitle = '';
+
+            if (note.beat === 0 && note.type === "direction") {
+                finalTimeDisplay = `${originalTime.toFixed(3)}s`;
+                finalTimeTitle = '게임 시작점';
+            } else {
+                const preDelaySeconds = getPreDelaySeconds();
+                const finalTime = originalTime + preDelaySeconds;
+                finalTimeDisplay = `${finalTime.toFixed(3)}s`;
+                finalTimeTitle = `원본: ${originalTime.toFixed(3)}s → 최종: ${finalTime.toFixed(3)}s (pre-delay: ${preDelaySeconds > 0 ? '+' : ''}${preDelaySeconds.toFixed(3)}s)`;
+            }
+
+            return (
+              <tr key={index}>
+                <td>{index}</td>
+                <td>{note.type}</td>
+                <td>
+                  <input 
+                    type="number" 
+                    value={note.beat} 
+                    onChange={e => handleNoteChange(index, 'beat', e.target.value)}
+                    step="1"
+                  />
+                </td>
+                <td title={finalTimeTitle}>{finalTimeDisplay}</td>
+                <td>
+                  {note.type === 'direction' ? (
+                    <select 
+                      value={note.direction} 
+                      onChange={e => handleNoteChange(index, 'direction', e.target.value)}
+                    >
+                      {["none", "up", "down", "left", "right", "upleft", "upright", "downleft", "downright"].map(d => 
+                        <option key={d} value={d}>{d}</option>
+                      )}
+                    </select>
+                  ) : '-'}
+                </td>
+                <td>
+                  <button 
+                    onClick={() => deleteNote(index)}
+                    disabled={note.beat === 0 && note.type === "direction"}
+                  >
+                    삭제
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

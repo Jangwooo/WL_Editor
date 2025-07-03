@@ -26,6 +26,8 @@ function App() {
         setSubdivisions={editor.setSubdivisions}
         preDelay={editor.preDelay}
         setPreDelay={editor.setPreDelay}
+        updateNote={editor.updateNote}
+        deleteNote={editor.deleteNote}
       />
       <button 
         id="sidebar-toggle" 
@@ -42,9 +44,18 @@ function App() {
         setZoom={editor.setZoom}
         viewOffset={editor.viewOffset}
         setViewOffset={editor.setViewOffset}
+        sortNotes={editor.sortNotes}
+        clearNotes={editor.clearNotes}
+        subdivisions={editor.subdivisions}
+        saveJson={editor.saveJson}
+        loadJson={editor.loadJson}
       />
 
-      <ControlBar isHidden={isControlBarHidden} />
+      <ControlBar 
+        isHidden={isControlBarHidden}
+        addTabNote={editor.addTabNote}
+        addDirectionNote={editor.addDirectionNote}
+      />
       <button
         id="control-bar-toggle"
         className={classNames("toggle-btn", "control-bar-toggle", { hidden: isControlBarHidden })}

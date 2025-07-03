@@ -10,6 +10,11 @@ interface MainContentProps {
   setZoom: React.Dispatch<React.SetStateAction<number>>;
   viewOffset: { x: number; y: number; };
   setViewOffset: React.Dispatch<React.SetStateAction<{ x: number; y: number; }>>;
+  sortNotes: () => void;
+  clearNotes: () => void;
+  subdivisions: number;
+  saveJson: () => void;
+  loadJson: (file: File) => void;
 }
 
 const MainContent: React.FC<MainContentProps> = ({ 
@@ -18,14 +23,16 @@ const MainContent: React.FC<MainContentProps> = ({
   zoom,
   setZoom,
   viewOffset,
-  setViewOffset
+  setViewOffset,
+  sortNotes,
+  clearNotes,
+  subdivisions,
+  saveJson,
+  loadJson
  }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isPanning = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
-
-  // This will be passed from props later
-  const subdivisions = 16; 
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -147,6 +154,20 @@ const MainContent: React.FC<MainContentProps> = ({
     }
   };
 
+  const handleLoadJsonClick = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = (e) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (file) {
+        loadJson(file);
+      }
+    };
+    input.click();
+  };
+
   return (
     <div 
       id="main" 
@@ -157,10 +178,10 @@ const MainContent: React.FC<MainContentProps> = ({
       onMouseUp={handleMouseUp}
     >
       <div id="top-bar">
-        <button id="save-json">Save Json</button>
-        <button id="load-json">Load Json</button>
-        <button id="sort-notes">Sort by Beat</button>
-        <button id="clear-notes">Clear All</button>
+        <button id="save-json" onClick={saveJson}>Save Json</button>
+        <button id="load-json" onClick={handleLoadJsonClick}>Load Json</button>
+        <button id="sort-notes" onClick={sortNotes}>Sort by Beat</button>
+        <button id="clear-notes" onClick={clearNotes}>Clear All</button>
         <div id="volume-controls">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -3,9 +3,11 @@ import classNames from 'classnames';
 
 interface ControlBarProps {
   isHidden: boolean;
+  addTabNote: () => void;
+  addDirectionNote: () => void;
 }
 
-const ControlBar: React.FC<ControlBarProps> = ({ isHidden }) => {
+const ControlBar: React.FC<ControlBarProps> = ({ isHidden, addTabNote, addDirectionNote }) => {
   return (
     <div id="control-bar" className={classNames({ hidden: isHidden })}>
       <div id="control-bar-content">
@@ -24,8 +26,8 @@ const ControlBar: React.FC<ControlBarProps> = ({ isHidden }) => {
         </div>
 
         <div id="note-controls">
-          <button className="tab" id="add-tab">tab note +</button>
-          <button className="dir" id="add-dir">direction Note +</button>
+          <button className="tab" id="add-tab" onClick={addTabNote}>tab note +</button>
+          <button className="dir" id="add-dir" onClick={addDirectionNote}>direction Note +</button>
         </div>
       </div>
     </div>
