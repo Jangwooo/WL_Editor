@@ -142,7 +142,44 @@ const MainContent: React.FC<MainContentProps> = ({
       const screenX = pos.x * zoom + viewOffset.x;
       const screenY = pos.y * zoom + viewOffset.y;
       
-      // Draw Tab notes, Direction notes... (full logic from script.js drawPath)
+      if (note.type === "tab") {
+          ctx.beginPath();
+          ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+          // Pre-delay가 적용된 노트는 다른 색상으로 표시
+          ctx.fillStyle = (note.beat === 0) ? "red" : "#FF6B6B";
+          ctx.fill();
+          if (note.beat !== 0) {
+              ctx.strokeStyle = "#4CAF50";
+              ctx.lineWidth = 2;
+              ctx.stroke();
+          }
+      }
+
+      if (note.type === "direction") {
+          const [dx, dy] = directionToVector(note.direction);
+          const mag = Math.hypot(dx, dy) || 1;
+          const ux = (dx / mag) * 16;
+          const uy = (dy / mag) * 16;
+          const endX = screenX + ux;
+          const endY = screenY + uy;
+
+          ctx.beginPath();
+          ctx.moveTo(screenX, screenY);
+          ctx.lineTo(endX, endY);
+          ctx.strokeStyle = (note.beat === 0) ? "#f00" : "#4CAF50";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          const perpX = -uy * 0.5;
+          const perpY = ux * 0.5;
+          ctx.beginPath();
+          ctx.moveTo(endX, endY);
+          ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
+          ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
+          ctx.closePath();
+          ctx.fillStyle = (note.beat === 0) ? "#f00" : "#4CAF50";
+          ctx.fill();
+      }
     });
     
     // Draw highlight effect
@@ -157,7 +194,20 @@ const MainContent: React.FC<MainContentProps> = ({
             pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
         }
         const pos = getNotePositionOnPath(pathBeat);
-        //... (draw highlight arc)
+        
+        if (pos) {
+            const x = pos.x * zoom + viewOffset.x;
+            const y = pos.y * zoom + viewOffset.y;
+
+            const alpha = Math.min(1, highlightedNoteTimer * 2);
+            const radius = 15 + (0.5 - highlightedNoteTimer) * 30;
+
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.strokeStyle = `rgba(255, 200, 0, ${alpha})`;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
     }
 
     // Draw player
