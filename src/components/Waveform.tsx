@@ -14,7 +14,7 @@ interface WaveformProps {
 const Waveform: React.FC<WaveformProps> = ({ isSidebarHidden, audioBuffer, waveformData, preDelay }) => {
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const rulerCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [waveformZoom, setWaveformZoom] = useState(1);
+  const [waveformZoom] = useState(1);
 
   const getPreDelaySeconds = () => preDelay / 1000;
 
@@ -119,7 +119,7 @@ const Waveform: React.FC<WaveformProps> = ({ isSidebarHidden, audioBuffer, wavef
     rulerCtx.font = '8px Arial';
     rulerCtx.fillText('(3초)', rulerStartX + 2, 22);
 
-  }, [audioBuffer, waveformData, preDelay, waveformZoom, isSidebarHidden]);
+  }, [audioBuffer, waveformData, preDelay, waveformZoom, isSidebarHidden, getPreDelaySeconds]);
 
   return (
     <>

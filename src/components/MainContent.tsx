@@ -20,7 +20,7 @@ interface MainContentProps {
   highlightedNoteIndex: number | null;
   highlightedNoteTimer: number;
   pathData: {
-    pathDirectionNotes: any[];
+    pathDirectionNotes: (Note & { pathBeat: number })[];
     nodePositions: { x: number; y: number; }[];
   };
   bpm: number;
@@ -97,7 +97,7 @@ const MainContent: React.FC<MainContentProps> = ({
     drawGrid();
 
     // Use pre-calculated path data
-    const { pathDirectionNotes, nodePositions } = pathData;
+    const { nodePositions } = pathData;
 
     // Draw Path
     ctx.beginPath();
@@ -111,7 +111,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
     // Draw All Notes
     const preDelaySeconds = preDelay / 1000;
-    notes.forEach((note, index) => {
+    notes.forEach((note) => {
       let pathBeat;
       if (note.beat === 0 && note.type === "direction") {
         pathBeat = 0;
@@ -212,7 +212,11 @@ const MainContent: React.FC<MainContentProps> = ({
           const angle = (i * Math.PI) / spikes;
           const x = Math.cos(angle) * radius;
           const y = Math.sin(angle) * radius;
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
       }
       ctx.closePath();
       ctx.fill();

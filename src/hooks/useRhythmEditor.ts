@@ -8,8 +8,18 @@ export interface Note {
   direction?: 'none' | 'up' | 'down' | 'left' | 'right' | 'upleft' | 'upright' | 'downleft' | 'downright';
 }
 
+interface JsonNote {
+  noteType: 'Direction' | 'Tab';
+  beat: number;
+  direction?: Note['direction'];
+}
+
+interface WindowWithAudioContext extends Window {
+  AudioContext?: typeof AudioContext;
+  webkitAudioContext?: typeof AudioContext;
+}
+
 // From script.js, these will be defined properly later
-const MAC_DELAY_OFFSET = 800; // ms
 const SOUND_POOL_SIZE = 10;
 const MUSIC_START_TIME = 3.0;
 
@@ -219,7 +229,7 @@ export const useRhythmEditor = () => {
                 return;
             }
 
-            const newNotes: Note[] = json.noteList.map((n: any) => ({
+            const newNotes: Note[] = json.noteList.map((n: JsonNote) => ({
                 type: n.noteType === "Direction" ? "direction" : "tab",
                 beat: n.beat,
                 direction: n.direction || "none"
@@ -230,8 +240,8 @@ export const useRhythmEditor = () => {
             setSubdivisions(json.subdivisions || 16);
             setPreDelay(json.preDelay || 3000);
 
-        } catch (err: any) {
-            alert("불러오기 중 오류 발생: " + err.message);
+        } catch (err) {
+            alert("불러오기 중 오류 발생: " + (err instanceof Error ? err.message : String(err)));
         }
     };
     reader.readAsText(file);
@@ -246,21 +256,33 @@ export const useRhythmEditor = () => {
     setSavedAudioFile({ name: file.name, size: file.size, type: file.type });
 
     try {
-        const audioContext = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
+        const AudioContext = (window as WindowWithAudioContext).AudioContext || (window as WindowWithAudioContext).webkitAudioContext;
+        if (!AudioContext) {
+            console.warn("Web Audio API is not supported in this browser.");
+            // Fallback to create a dummy waveform based on audio element duration
+            const audio = new Audio(newUrl);
+            audio.onloadedmetadata = () => {
+                const dummyBuffer = { duration: audio.duration, getChannelData: () => new Float32Array() };
+                setAudioBuffer(dummyBuffer as unknown as AudioBuffer);
+                generateWaveformData(dummyBuffer as unknown as AudioBuffer, true);
+            }
+            return;
+        }
+        const audioContext = new AudioContext();
         const arrayBuffer = await file.arrayBuffer();
         const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer);
         
         setAudioBuffer(decodedBuffer);
         generateWaveformData(decodedBuffer);
     } catch (e) {
-        console.warn("Web Audio API failed, using dummy data.", e);
-        // Fallback to create a dummy waveform based on audio element duration
+        console.warn("Web Audio API failed to decode audio data.", e);
+        // Fallback for decoding errors
         const audio = new Audio(newUrl);
         audio.onloadedmetadata = () => {
             const dummyBuffer = { duration: audio.duration, getChannelData: () => new Float32Array() };
-            setAudioBuffer(dummyBuffer as any);
-            generateWaveformData(dummyBuffer as any, true);
-        }
+            setAudioBuffer(dummyBuffer as unknown as AudioBuffer);
+            generateWaveformData(dummyBuffer as unknown as AudioBuffer, true);
+        };
     }
   };
 
@@ -339,7 +361,7 @@ export const useRhythmEditor = () => {
     playedNotesRef.current.clear();
   };
 
-  const getNotePositionFromPathData = (pathBeat: number, pathDirectionNotes: any[], nodePositions: any[]) => {
+  const getNotePositionFromPathData = (pathBeat: number, pathDirectionNotes: (Note & { pathBeat: number; })[], nodePositions: { x: number; y: number; }[]) => {
     // This is a simplified version of the original logic
     for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
         const a = pathDirectionNotes[i];
