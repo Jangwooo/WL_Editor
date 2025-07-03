@@ -1,20 +1,37 @@
 import React from 'react';
 import classNames from 'classnames';
+import type { Note } from '../hooks/useRhythmEditor';
 
 interface SidebarProps {
   isHidden: boolean;
+  notes: Note[];
+  bpm: number;
+  setBpm: (value: number) => void;
+  subdivisions: number;
+  setSubdivisions: (value: number) => void;
+  preDelay: number;
+  setPreDelay: (value: number) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isHidden }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+  isHidden,
+  notes,
+  bpm,
+  setBpm,
+  subdivisions,
+  setSubdivisions,
+  preDelay,
+  setPreDelay
+}) => {
   return (
     <div id="sidebar" className={classNames({ hidden: isHidden })}>
       <div style={{ padding: '8px' }}>
-        <label>BPM: <input id="bpm" type="number" defaultValue="120" min="60" max="300" step="1" /></label>
+        <label>BPM: <input id="bpm" type="number" value={bpm} onChange={e => setBpm(Number(e.target.value))} min="60" max="300" step="1" /></label>
         <br /><br />
-        <label>Pre-delay (ms): <input id="pre-delay" type="number" defaultValue="3000" min="0" max="10000" step="100" /></label>
+        <label>Pre-delay (ms): <input id="pre-delay" type="number" value={preDelay} onChange={e => setPreDelay(Number(e.target.value))} min="0" max="10000" step="100" /></label>
         <br /><br />
         <label>Subdivisions:
-          <select id="subdivisions" defaultValue="16">
+          <select id="subdivisions" value={subdivisions} onChange={e => setSubdivisions(Number(e.target.value))}>
             <option value="4">4분박</option>
             <option value="8">8분박</option>
             <option value="16">16분박</option>
@@ -29,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isHidden }) => {
           </tr>
         </thead>
         <tbody id="note-list">
-          {/* script.js가 여기 <tr>을 동적으로 추가함 */}
+          {/* Note rendering will be implemented here */}
         </tbody>
       </table>
     </div>
